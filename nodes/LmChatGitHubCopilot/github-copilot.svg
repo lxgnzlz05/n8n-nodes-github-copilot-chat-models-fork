@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- GitHub Copilot icon - simplified representation -->
+  <circle cx="16" cy="16" r="16" fill="#0d1117"/>
+  <!-- Copilot face/visor shape -->
+  <ellipse cx="16" cy="17" rx="10" ry="8" fill="#ffffff" opacity="0.95"/>
+  <!-- Eyes / visor -->
+  <rect x="10" y="14" width="5" height="3" rx="1.5" fill="#0d1117"/>
+  <rect x="17" y="14" width="5" height="3" rx="1.5" fill="#0d1117"/>
+  <!-- Helmet top -->
+  <path d="M6 16 Q6 8 16 8 Q26 8 26 16" fill="#6e40c9" opacity="0.9"/>
+  <!-- Chin detail -->
+  <ellipse cx="16" cy="24" rx="6" ry="2" fill="#6e40c9" opacity="0.6"/>
+</svg>
