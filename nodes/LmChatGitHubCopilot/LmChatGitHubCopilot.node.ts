@@ -8,7 +8,7 @@ import type {
 } from "n8n-workflow";
 import { NodeConnectionTypes } from "n8n-workflow";
 import {
-  GitHubCopilotChatModel,
+  createGitHubCopilotChatModel,
   getBaseUrl,
 } from "./GitHubCopilotChatModel";
 
@@ -173,12 +173,12 @@ export class LmChatGitHubCopilot implements INodeType {
       maxTokens?: number;
     };
 
-    const chatModel = new GitHubCopilotChatModel({
+    const chatModel = createGitHubCopilotChatModel({
       token,
       baseUrl,
       model,
       temperature: options.temperature,
-      maxTokens: options.maxTokens !== -1 ? options.maxTokens : undefined,
+      maxTokens: options.maxTokens,
     });
 
     return {
