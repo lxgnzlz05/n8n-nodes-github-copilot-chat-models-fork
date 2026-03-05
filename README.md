@@ -29,7 +29,7 @@ See [docs/DEVELOPMENT.md](./docs/DEVELOPMENT.md)
 ## Setup
 
 ### 1. Create a Credential
-Check [docs/CREDENTIALS.md](./docs/CREDENTIALS.md)
+See [docs/CREDENTIALS.md](./docs/CREDENTIALS.md)
 
 ### 2. Add the Node to a Workflow
 
