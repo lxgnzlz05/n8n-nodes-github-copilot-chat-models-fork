@@ -1,6 +1,6 @@
 import type { ICredentialType, INodeProperties } from "n8n-workflow";
 
-// VS Code's GitHub Copilot OAuth app client ID (public, used by all Copilot clients)
+// OpenCode GitHub Copilot OAuth app client ID (public, used by all Copilot clients)
 export const DEFAULT_CLIENT_ID = "Ov23li8tweQw6odWQebz";
 
 export class GitHubCopilotApi implements ICredentialType {
