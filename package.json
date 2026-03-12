@@ -1,5 +1,5 @@
 {
-  "name": "n8n-nodes-github-copilot-chat-models",
+  "name": "n8n-nodes-github-copilot-models",
   "version": "0.1.0",
   "description": "n8n community node for GitHub Copilot chat model and embeddings integration",
   "keywords": [
@@ -13,13 +13,13 @@
     "langchain"
   ],
   "license": "MIT",
-  "homepage": "https://github.com/kk17/n8n-nodes-github-copilot-chat-models",
+  "homepage": "https://github.com/lxgnzlz05/n8n-nodes-github-copilot-chat-models-fork",
   "author": {
-    "name": "kk17"
+    "name": "lex05"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kk17/n8n-nodes-github-copilot-chat-models.git"
+    "url": "git+https://github.com/lxgnzlz05/n8n-nodes-github-copilot-chat-models-fork.git"
   },
   "main": "index.js",
   "scripts": {
