@@ -397,8 +397,11 @@ export class LmChatGitHubCopilot implements INodeType {
       maxTokens: options.maxTokens,
     });
 
+    // Dynamic import — resolved at runtime by n8n's module loader
+    const { logWrapper } = await import("@n8n/ai-utilities");
+
     return {
-      response: chatModel,
+      response: logWrapper(chatModel as any, this),
     };
   }
 }
