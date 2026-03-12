@@ -234,8 +234,11 @@ export class EmbeddingsGitHubCopilot implements INodeType {
       stripNewLines: options.stripNewLines,
     });
 
+    // Dynamic import — resolved at runtime by n8n's module loader
+    const { logWrapper } = await import("@n8n/ai-utilities");
+
     return {
-      response: embeddings,
+      response: logWrapper(embeddings as any, this),
     };
   }
 }
