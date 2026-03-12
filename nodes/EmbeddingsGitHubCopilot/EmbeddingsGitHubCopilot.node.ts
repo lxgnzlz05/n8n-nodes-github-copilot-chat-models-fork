@@ -6,11 +6,10 @@ import type {
   ILoadOptionsFunctions,
   INodePropertyOptions,
 } from "n8n-workflow";
-import { NodeConnectionTypes } from "n8n-workflow";
+import { NodeConnectionTypes, NodeApiError } from "n8n-workflow";
 import {
   createGitHubCopilotEmbeddings,
 } from "./GitHubCopilotEmbeddings";
-import { getBaseUrl } from "../LmChatGitHubCopilot/GitHubCopilotChatModel";
 
 interface CopilotModel {
   id: string;
@@ -25,6 +24,16 @@ interface CopilotModel {
 interface CopilotModelsResponse {
   data?: CopilotModel[];
   models?: CopilotModel[];
+}
+
+function getBaseUrl(enterpriseUrl?: string): string {
+  if (!enterpriseUrl || enterpriseUrl.trim() === "") {
+    return "https://api.githubcopilot.com";
+  }
+  const domain = enterpriseUrl
+    .replace(/^https?:\/\//, "")
+    .replace(/\/$/, "");
+  return `https://copilot-api.${domain}`;
 }
 
 function getCopilotHeaders(token: string): Record<string, string> {
@@ -162,11 +171,11 @@ export class EmbeddingsGitHubCopilot implements INodeType {
             }))
             .sort((a, b) => a.name.localeCompare(b.name));
         } catch (error) {
-          console.warn(
-            "Failed to load embedding models from GitHub Copilot API:",
-            error instanceof Error ? error.message : String(error),
-          );
-          return [];
+          throw new NodeApiError(this.getNode(), error instanceof Error
+            ? { message: error.message }
+            : { message: String(error) }, {
+            message: "Failed to load embedding models from GitHub Copilot API",
+          });
         }
       },
     },
