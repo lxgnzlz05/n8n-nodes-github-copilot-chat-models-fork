@@ -1,4 +1,5 @@
 import { ChatOpenAI } from "@langchain/openai";
+import type { Callbacks } from "@langchain/core/callbacks/manager";
 
 const VERSION = "0.1.0";
 
@@ -18,6 +19,7 @@ export interface GitHubCopilotChatModelInput {
   model: string;
   temperature?: number;
   maxTokens?: number;
+  callbacks?: Callbacks;
 }
 
 /**
@@ -49,6 +51,7 @@ export function createGitHubCopilotChatModel(
     },
     // Copilot API does not support strict tool calling schemas
     supportsStrictToolCalling: false,
+    callbacks: input.callbacks,
   };
 
   if (input.maxTokens !== undefined && input.maxTokens !== -1) {
