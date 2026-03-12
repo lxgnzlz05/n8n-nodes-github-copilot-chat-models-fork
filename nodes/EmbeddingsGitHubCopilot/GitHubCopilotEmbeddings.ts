@@ -1,10 +1,23 @@
-import { OpenAIEmbeddings } from "@langchain/openai";
+/**
+ * GitHub Models Embeddings — uses the official GitHub Models API
+ * at https://models.github.ai/inference/embeddings
+ *
+ * This module lazy-imports OpenAIEmbeddings from @langchain/openai to avoid
+ * module-resolution failures when n8n loads community nodes (the package
+ * lives in n8n's own node_modules, not the community node's).
+ *
+ * The GitHub Models inference API is OpenAI-compatible, so OpenAIEmbeddings
+ * works perfectly with a baseURL override.
+ */
 
-const VERSION = "0.1.0";
+const VERSION = "0.2.0";
 
-export interface GitHubCopilotEmbeddingsInput {
+/** Base URL for the GitHub Models inference API */
+export const GITHUB_MODELS_INFERENCE_URL =
+  "https://models.github.ai/inference";
+
+export interface GitHubModelsEmbeddingsInput {
   token: string;
-  baseUrl: string;
   model: string;
   dimensions?: number;
   batchSize?: number;
@@ -12,29 +25,24 @@ export interface GitHubCopilotEmbeddingsInput {
 }
 
 /**
- * Creates an OpenAIEmbeddings instance configured to use the GitHub Copilot API.
+ * Creates an OpenAIEmbeddings instance configured to use the GitHub Models API.
  *
- * The Copilot API exposes an OpenAI-compatible embeddings endpoint at
- * POST /embeddings. Available embedding models include:
- *   - text-embedding-3-small       (supports dimensions)
- *   - text-embedding-3-small-inference (supports dimensions)
- *   - text-embedding-ada-002
- *
- * We reuse OpenAIEmbeddings from @langchain/openai, overriding the base URL
- * and injecting the required Copilot headers — the same pattern used by the
- * chat model node.
+ * Uses a dynamic import so the module is resolved at runtime (when n8n's
+ * module loader has the full search path available) instead of at load time.
  */
-export function createGitHubCopilotEmbeddings(
-  input: GitHubCopilotEmbeddingsInput,
-): OpenAIEmbeddings {
+export async function createGitHubModelsEmbeddings(
+  input: GitHubModelsEmbeddingsInput,
+): Promise<InstanceType<typeof import("@langchain/openai").OpenAIEmbeddings>> {
+  // Dynamic import — resolved at runtime by n8n's module loader
+  const { OpenAIEmbeddings } = await import("@langchain/openai");
+
   const embeddingsArgs: ConstructorParameters<typeof OpenAIEmbeddings>[0] = {
-    apiKey: input.token,
+    openAIApiKey: input.token,
     model: input.model,
     configuration: {
-      baseURL: input.baseUrl,
+      baseURL: GITHUB_MODELS_INFERENCE_URL,
       defaultHeaders: {
-        "Copilot-Integration-Id": "vscode-chat",
-        "x-initiator": "user",
+        "X-GitHub-Api-Version": "2026-03-10",
         "User-Agent": `n8n-github-copilot/${VERSION}`,
       },
     },
