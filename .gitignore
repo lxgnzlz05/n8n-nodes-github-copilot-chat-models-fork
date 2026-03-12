@@ -15,5 +15,8 @@ npm-debug.log*
 .env
 .env.*
 
+# Test scripts
+test-*.mjs
+
 # OS
 .DS_Store

@@ -12,39 +12,27 @@ import type {
 } from "n8n-workflow";
 import { NodeConnectionTypes } from "n8n-workflow";
 import {
-  createGitHubCopilotEmbeddings,
+  createGitHubModelsEmbeddings,
 } from "./GitHubCopilotEmbeddings";
 
-interface CopilotModel {
+/** GitHub Models catalog API — returns available models with metadata */
+const GITHUB_MODELS_CATALOG_URL = "https://models.github.ai/catalog/models";
+
+/** API version header required by GitHub Models */
+const GITHUB_API_VERSION = "2026-03-10";
+
+interface GitHubModel {
   id: string;
   name?: string;
-  capabilities?: {
-    type?: string;
-    family?: string;
-    supports?: Record<string, boolean>;
-  };
+  rate_limit_tier?: string;
+  supported_output_modalities?: string[];
 }
 
-interface CopilotModelsResponse {
-  data?: CopilotModel[];
-  models?: CopilotModel[];
-}
-
-function getBaseUrl(enterpriseUrl?: string): string {
-  if (!enterpriseUrl || enterpriseUrl.trim() === "") {
-    return "https://api.githubcopilot.com";
-  }
-  const domain = enterpriseUrl
-    .replace(/^https?:\/\//, "")
-    .replace(/\/$/, "");
-  return `https://copilot-api.${domain}`;
-}
-
-function getCopilotHeaders(token: string): Record<string, string> {
+function getGitHubModelsHeaders(token: string): Record<string, string> {
   return {
     Authorization: `Bearer ${token}`,
-    "Copilot-Integration-Id": "vscode-chat",
-    "x-initiator": "user",
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": GITHUB_API_VERSION,
   };
 }
 
@@ -56,7 +44,7 @@ export class EmbeddingsGitHubCopilot implements INodeType {
     group: ["transform"],
     version: 1,
     description:
-      "Use GitHub Copilot embedding models to generate vector embeddings for text",
+      "Use GitHub Models embedding models to generate vector embeddings for text",
     defaults: {
       name: "GitHub Copilot Embeddings",
     },
@@ -68,7 +56,7 @@ export class EmbeddingsGitHubCopilot implements INodeType {
       resources: {
         primaryDocumentation: [
           {
-            url: "https://docs.github.com/en/copilot",
+            url: "https://docs.github.com/en/github-models",
           },
         ],
       },
@@ -77,12 +65,10 @@ export class EmbeddingsGitHubCopilot implements INodeType {
       {
         name: "gitHubCopilotApi",
         required: true,
-        testedBy: "testGitHubCopilotEmbeddingsCredential",
+        testedBy: "testGitHubModelsEmbeddingsCredential",
       },
     ],
-    // No inputs — this node is a sub-node that supplies an embeddings model
     inputs: [],
-    // Output type is AiEmbedding so it can be connected to vector stores, etc.
     outputs: [NodeConnectionTypes.AiEmbedding],
     outputNames: ["Embeddings"],
     properties: [
@@ -91,7 +77,7 @@ export class EmbeddingsGitHubCopilot implements INodeType {
         name: "model",
         type: "options",
         description:
-          "The GitHub Copilot embedding model to use. Models are fetched from the Copilot API.",
+          "The embedding model to use. Models are fetched dynamically from the GitHub Models catalog.",
         default: "",
         typeOptions: {
           loadOptionsMethod: "getEmbeddingModels",
@@ -111,7 +97,7 @@ export class EmbeddingsGitHubCopilot implements INodeType {
             default: 1536,
             description:
               "The number of dimensions for the output embeddings. " +
-              "Only supported by text-embedding-3-* models.",
+              "Only supported by text-embedding-3 models.",
             options: [
               { name: "256", value: 256 },
               { name: "512", value: 512 },
@@ -149,32 +135,32 @@ export class EmbeddingsGitHubCopilot implements INodeType {
       ): Promise<INodePropertyOptions[]> {
         const credentials = await this.getCredentials("gitHubCopilotApi");
         const token = credentials.token as string;
-        const enterpriseUrl = credentials.enterpriseUrl as string | undefined;
-        const baseUrl = getBaseUrl(enterpriseUrl);
 
         try {
           const response = await this.helpers.httpRequest({
             method: "GET",
-            url: `${baseUrl}/models`,
-            headers: getCopilotHeaders(token),
+            url: GITHUB_MODELS_CATALOG_URL,
+            headers: getGitHubModelsHeaders(token),
           });
 
-          const data = response as CopilotModelsResponse;
-          const models: CopilotModel[] = Array.isArray(response)
+          const models: GitHubModel[] = Array.isArray(response)
             ? response
-            : (data.data ?? data.models ?? []);
+            : [];
 
           return models
             .filter((m) => {
-              const capType = m.capabilities?.type?.toLowerCase() ?? "";
-              return capType === "embeddings";
+              // Filter to embedding models only
+              return (
+                m.rate_limit_tier === "embeddings" ||
+                m.supported_output_modalities?.includes("embeddings")
+              );
             })
             .map((m) => ({
               name: m.name ?? m.id,
               value: m.id,
             }))
             .sort((a, b) => a.name.localeCompare(b.name));
-        } catch (error) {
+        } catch {
           // Return empty so dropdown renders; n8n swallows errors in loadOptions
           return [];
         }
@@ -182,35 +168,34 @@ export class EmbeddingsGitHubCopilot implements INodeType {
     },
 
     credentialTest: {
-      async testGitHubCopilotEmbeddingsCredential(
+      async testGitHubModelsEmbeddingsCredential(
         this: ICredentialTestFunctions,
         credential: ICredentialsDecrypted<ICredentialDataDecryptedObject>,
       ): Promise<INodeCredentialTestResult> {
         const data = credential.data ?? {};
         const token = (data.token as string | undefined) ?? "";
-        const enterpriseUrl =
-          (data.enterpriseUrl as string | undefined) ?? "";
 
         if (!token.trim()) {
           return {
             status: "Error",
-            message: "No token provided. Please configure the credential via the Chat Model node first.",
+            message:
+              "No token provided. Please configure the credential via the Chat Model node first.",
           };
         }
 
-        const baseUrl = getBaseUrl(enterpriseUrl);
-
         try {
+          // Test connectivity by calling the GitHub Models catalog endpoint
           await this.helpers.request({
             method: "GET",
-            uri: `${baseUrl}/models`,
-            headers: getCopilotHeaders(token),
+            uri: GITHUB_MODELS_CATALOG_URL,
+            headers: getGitHubModelsHeaders(token),
             json: true,
           });
 
           return {
             status: "OK",
-            message: "Connection successful! GitHub Copilot API is accessible.",
+            message:
+              "Connection successful! GitHub Models API is accessible.",
           };
         } catch (error: unknown) {
           const err = error as { statusCode?: number; message?: string };
@@ -229,13 +214,11 @@ export class EmbeddingsGitHubCopilot implements INodeType {
   ): Promise<SupplyData> {
     const credentials = await this.getCredentials("gitHubCopilotApi");
     const token = credentials.token as string;
-    const enterpriseUrl = credentials.enterpriseUrl as string | undefined;
-    const baseUrl = getBaseUrl(enterpriseUrl);
 
     const model = this.getNodeParameter(
       "model",
       itemIndex,
-      "text-embedding-3-small",
+      "openai/text-embedding-3-small",
     ) as string;
     const options = this.getNodeParameter("options", itemIndex, {}) as {
       dimensions?: number;
@@ -243,9 +226,8 @@ export class EmbeddingsGitHubCopilot implements INodeType {
       stripNewLines?: boolean;
     };
 
-    const embeddings = createGitHubCopilotEmbeddings({
+    const embeddings = await createGitHubModelsEmbeddings({
       token,
-      baseUrl,
       model,
       dimensions: options.dimensions,
       batchSize: options.batchSize,
