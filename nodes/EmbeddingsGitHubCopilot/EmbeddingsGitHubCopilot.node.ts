@@ -5,8 +5,12 @@ import type {
   SupplyData,
   ILoadOptionsFunctions,
   INodePropertyOptions,
+  ICredentialTestFunctions,
+  ICredentialsDecrypted,
+  ICredentialDataDecryptedObject,
+  INodeCredentialTestResult,
 } from "n8n-workflow";
-import { NodeConnectionTypes, NodeApiError } from "n8n-workflow";
+import { NodeConnectionTypes } from "n8n-workflow";
 import {
   createGitHubCopilotEmbeddings,
 } from "./GitHubCopilotEmbeddings";
@@ -73,6 +77,7 @@ export class EmbeddingsGitHubCopilot implements INodeType {
       {
         name: "gitHubCopilotApi",
         required: true,
+        testedBy: "testGitHubCopilotEmbeddingsCredential",
       },
     ],
     // No inputs — this node is a sub-node that supplies an embeddings model
@@ -155,7 +160,6 @@ export class EmbeddingsGitHubCopilot implements INodeType {
           });
 
           const data = response as CopilotModelsResponse;
-          // API may return { data: [...] } or { models: [...] } or an array directly
           const models: CopilotModel[] = Array.isArray(response)
             ? response
             : (data.data ?? data.models ?? []);
@@ -171,11 +175,49 @@ export class EmbeddingsGitHubCopilot implements INodeType {
             }))
             .sort((a, b) => a.name.localeCompare(b.name));
         } catch (error) {
-          throw new NodeApiError(this.getNode(), error instanceof Error
-            ? { message: error.message }
-            : { message: String(error) }, {
-            message: "Failed to load embedding models from GitHub Copilot API",
+          // Return empty so dropdown renders; n8n swallows errors in loadOptions
+          return [];
+        }
+      },
+    },
+
+    credentialTest: {
+      async testGitHubCopilotEmbeddingsCredential(
+        this: ICredentialTestFunctions,
+        credential: ICredentialsDecrypted<ICredentialDataDecryptedObject>,
+      ): Promise<INodeCredentialTestResult> {
+        const data = credential.data ?? {};
+        const token = (data.token as string | undefined) ?? "";
+        const enterpriseUrl =
+          (data.enterpriseUrl as string | undefined) ?? "";
+
+        if (!token.trim()) {
+          return {
+            status: "Error",
+            message: "No token provided. Please configure the credential via the Chat Model node first.",
+          };
+        }
+
+        const baseUrl = getBaseUrl(enterpriseUrl);
+
+        try {
+          await this.helpers.request({
+            method: "GET",
+            uri: `${baseUrl}/models`,
+            headers: getCopilotHeaders(token),
+            json: true,
           });
+
+          return {
+            status: "OK",
+            message: "Connection successful! GitHub Copilot API is accessible.",
+          };
+        } catch (error: unknown) {
+          const err = error as { statusCode?: number; message?: string };
+          return {
+            status: "Error",
+            message: `Connection failed (HTTP ${err?.statusCode ?? "?"}): ${err?.message ?? String(error)}`,
+          };
         }
       },
     },
