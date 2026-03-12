@@ -3,12 +3,37 @@ import type {
   INodeType,
   INodeTypeDescription,
   SupplyData,
+  ILoadOptionsFunctions,
+  INodePropertyOptions,
 } from "n8n-workflow";
 import { NodeConnectionTypes } from "n8n-workflow";
 import {
   createGitHubCopilotEmbeddings,
 } from "./GitHubCopilotEmbeddings";
 import { getBaseUrl } from "../LmChatGitHubCopilot/GitHubCopilotChatModel";
+
+interface CopilotModel {
+  id: string;
+  name?: string;
+  capabilities?: {
+    type?: string;
+    family?: string;
+    supports?: Record<string, boolean>;
+  };
+}
+
+interface CopilotModelsResponse {
+  data?: CopilotModel[];
+  models?: CopilotModel[];
+}
+
+function getCopilotHeaders(token: string): Record<string, string> {
+  return {
+    Authorization: `Bearer ${token}`,
+    "Copilot-Integration-Id": "vscode-chat",
+    "x-initiator": "user",
+  };
+}
 
 export class EmbeddingsGitHubCopilot implements INodeType {
   description: INodeTypeDescription = {
@@ -52,22 +77,11 @@ export class EmbeddingsGitHubCopilot implements INodeType {
         name: "model",
         type: "options",
         description:
-          "The GitHub Copilot embedding model to use.",
-        default: "text-embedding-3-small",
-        options: [
-          {
-            name: "Embedding V3 small",
-            value: "text-embedding-3-small",
-          },
-          {
-            name: "Embedding V3 small (Inference)",
-            value: "text-embedding-3-small-inference",
-          },
-          {
-            name: "Embedding V2 Ada",
-            value: "text-embedding-ada-002",
-          },
-        ],
+          "The GitHub Copilot embedding model to use. Models are fetched from the Copilot API.",
+        default: "",
+        typeOptions: {
+          loadOptionsMethod: "getEmbeddingModels",
+        },
       },
       {
         displayName: "Options",
@@ -112,6 +126,50 @@ export class EmbeddingsGitHubCopilot implements INodeType {
         ],
       },
     ],
+  };
+
+  methods = {
+    loadOptions: {
+      async getEmbeddingModels(
+        this: ILoadOptionsFunctions,
+      ): Promise<INodePropertyOptions[]> {
+        const credentials = await this.getCredentials("gitHubCopilotApi");
+        const token = credentials.token as string;
+        const enterpriseUrl = credentials.enterpriseUrl as string | undefined;
+        const baseUrl = getBaseUrl(enterpriseUrl);
+
+        try {
+          const response = await this.helpers.httpRequest({
+            method: "GET",
+            url: `${baseUrl}/models`,
+            headers: getCopilotHeaders(token),
+          });
+
+          const data = response as CopilotModelsResponse;
+          // API may return { data: [...] } or { models: [...] } or an array directly
+          const models: CopilotModel[] = Array.isArray(response)
+            ? response
+            : (data.data ?? data.models ?? []);
+
+          return models
+            .filter((m) => {
+              const capType = m.capabilities?.type?.toLowerCase() ?? "";
+              return capType === "embeddings";
+            })
+            .map((m) => ({
+              name: m.name ?? m.id,
+              value: m.id,
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+        } catch (error) {
+          console.warn(
+            "Failed to load embedding models from GitHub Copilot API:",
+            error instanceof Error ? error.message : String(error),
+          );
+          return [];
+        }
+      },
+    },
   };
 
   async supplyData(
